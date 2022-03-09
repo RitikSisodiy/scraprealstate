@@ -3,6 +3,10 @@ import os
 from django.conf import settings
 from django.apps import apps
 from unidecode import unidecode
+import os     
+from dotenv import load_dotenv
+import subprocess
+load_dotenv()
 conf = {
     'INSTALLED_APPS': [
         'django.contrib.admin',
@@ -13,24 +17,25 @@ conf = {
         'django.contrib.sitemaps',
         'django.contrib.sites',
         'django.contrib.staticfiles',
-        'kifwat_scrapy.demo.app',
+        'app',
     ],
     'DATABASES': {
          'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'demodatabase',
-        'USER': 'root', 
-        'PASSWORD': '',
-        'HOST': 'localhost',
-        'PORT': '3306'
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'), 
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT')
      },
     },
     'TIME_ZONE': 'UTC',
     'SECRET_KEY' : 'django-insecure-r+r$dw1%v9t!y@#jp^th2wm9=h7k_nkgbl!fj%l3!t)p52s1d%'
 }
-
 settings.configure(**conf)
 apps.populate(settings.INSTALLED_APPS)
+process = subprocess.Popen("python manage.py migrate app", shell=True, stdout=subprocess.PIPE)
+process.wait()
 
 # from demo.app.models import root,subroot
 # newdata = root(name='ramehs')
@@ -39,7 +44,7 @@ apps.populate(settings.INSTALLED_APPS)
 # sdata.save()
 # data = root.objects.all()
 # print(data)
-from kifwat_scrapy.demo.app.models import scrapData
+from app.models import scrapData
 def fixField(field):
     field = unidecode(field)
     startwith = [
