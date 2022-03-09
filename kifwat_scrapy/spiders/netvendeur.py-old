@@ -1,0 +1,65 @@
+import re
+
+from scrapy.spiders import CrawlSpider, Rule
+from scrapy.linkextractors import LinkExtractor
+
+
+class NetvendeurSpider(CrawlSpider):
+    name = 'netvendeur'
+    start_urls = [
+        'https://www.netvendeur.com/prix-immobilier/'
+    ]
+
+    rules = (
+        Rule(
+            LinkExtractor(
+                restrict_xpaths=['//div[contains(@class, "list_dep") and contains(., "Départements")]'],
+                allow=['/prix/'],
+            ),
+            callback='parse_item'
+        ),
+    )
+    custom_settings = {
+        'CONCURRENT_REQUESTS': 1,
+        'FEEDS': {
+            'netvendeur.csv': {
+                'format': 'csv',
+                'fields': [
+                    'Name', 'Prix bas maison', 'Prix moyen maison', 'Prix haut maison',
+                    'Prix bas apparetement', 'Prix moyen apparetement', 'Prix haut apparetement',
+
+                    'depuis 2 ans maisons', 'depuis 2 ans appartements', 'depuis 1 an maisons',
+                    'depuis 1 an appartements', 'depuis 6 mois maisons', 'depuis 6 mois appartements',
+                    'depuis 3 mois maisons', 'depuis 3 mois appartements'
+                ]
+            },
+        },
+        'DUPEFILTER_CLASS': 'kifwat_scrapy.middlewares.CustomFilter',
+        'USER_AGENT': 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36'
+    }
+
+    def parse_item(self, response, **kwargs):
+        bas_maison, moyen_maison, haut_maison = response.xpath(
+            'normalize-space(//p[@class="re-prices"])').extract_first().split('<')
+        appt_bas_maison, appt_moyen_maison, appt_haut_maison = response.xpath(
+            'normalize-space(//div[contains(@class, "re-appart")]//p[@class="re-prices"])'
+        ).extract_first().split('<')
+
+        table_evo = [[td_or_th.css('::text').extract_first() for td_or_th in tr.xpath('./*')]
+                     for tr in response.css('.table-evo tr')]
+        return {
+            'Name': response.css('#TitreTypeBien:contains("-")::text').extract_first().split('- ')[-1],
+            'Prix bas maison': re.findall('^([^€]*)', bas_maison)[0].replace(' ', ''),
+            'Prix moyen maison': re.findall('^([^€]*)', moyen_maison)[0].replace(' ', ''),
+            'Prix haut maison': re.findall('^([^€]*)', haut_maison)[0].replace(' ', ''),
+
+            'Prix bas apparetement': re.findall('^([^€]*)', appt_bas_maison)[0].replace(' ', ''),
+            'Prix moyen apparetement': re.findall('^([^€]*)', appt_moyen_maison)[0].replace(' ', ''),
+            'Prix haut apparetement': re.findall('^([^€]*)', appt_haut_maison)[0].replace(' ', ''),
+
+            **{
+                f'{h} {h2}'.lower(): table_evo[r_i + 1][c_i + 1]
+                for c_i, h in enumerate(table_evo[0][1:])
+                for r_i, h2 in enumerate(list(map(lambda row: row[0], table_evo[1:])))
+            }
+        }
