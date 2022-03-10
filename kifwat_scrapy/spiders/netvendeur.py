@@ -12,7 +12,12 @@ class NetvendeurSpider(CrawlSpider):
     start_urls = [
         'https://www.netvendeur.com/prix-immobilier/'
     ]
-
+    res= {
+        "regionid":None,
+        "departmentid":None,
+        "cityid":None,
+        "quaterid":None,
+    }
     rules = (
         Rule(
             LinkExtractor(restrict_xpaths=['//div[@id="region"]/../*'], allow=['/prix/'], ),
@@ -54,6 +59,7 @@ class NetvendeurSpider(CrawlSpider):
     #     return [Request('https://www.netvendeur.com/prix/ville-montrouge-92/', callback=self.parse_item)]
 
     def parse_item(self, response, **__):
+        typeofdata = __['typeofdata']
         breadcrumbs = response.css('[itemprop="itemListElement"] [itemprop="name"]::text').extract()[2:]
         breadcrumbs_dict = dict(zip_longest(['region', 'dept', 'city', 'quarter', 'proximité'], breadcrumbs))
         bas_maison, moyen_maison, haut_maison = response.xpath(
@@ -113,11 +119,16 @@ class NetvendeurSpider(CrawlSpider):
 
             **self._price_and_estimate_tables(response),
         }
-        uploaddata(result)
+        curl = response.request.url
+        zipcode = (curl[curl.rfind('-')+1:]).replace("/",'')
+        result['zip_code'] = zipcode if zipcode.isnumeric() else None
+        print(zipcode)
+        self.res = uploaddata(result,typeofdata,self.res)
+        print(self.res)
         return result
 
     def parse_region(self, response, **kwargs):
-        yield self.parse_item(response)
+        yield self.parse_item(response,typeofdata='region')
 
         for link in LinkExtractor(
                 restrict_xpaths=['//h2[contains(., "départements")]/../div[contains(@class, "list_dep")]'],
@@ -129,7 +140,7 @@ class NetvendeurSpider(CrawlSpider):
             )
 
     def parse_dept(self, response, **kwargs):
-        yield self.parse_item(response)
+        yield self.parse_item(response,typeofdata='department')
 
         for link in LinkExtractor(
                 restrict_xpaths=['//h3[contains(., "villes")]/../div[contains(@class, "list_dep")]'],
@@ -141,7 +152,7 @@ class NetvendeurSpider(CrawlSpider):
             )
 
     def parse_city(self, response, **kwargs):
-        yield self.parse_item(response)
+        yield self.parse_item(response,typeofdata='city')
 
         for link in LinkExtractor(
                 restrict_css=['div#prix-autre-quartier'],
@@ -153,7 +164,7 @@ class NetvendeurSpider(CrawlSpider):
             )
 
     def parse_quarter(self, response, **kwargs):
-        yield self.parse_item(response)
+        yield self.parse_item(response,typeofdata='quater')
 
         breadcrumbs = response.css('[itemprop="itemListElement"] [itemprop="name"]::text').extract()[2:]
         breadcrumbs = dict(zip_longest(['region', 'dept', 'city', 'quarter', 'proximité'], breadcrumbs))
@@ -166,7 +177,8 @@ class NetvendeurSpider(CrawlSpider):
             yield response.follow(
                 link.url,
                 meta={'quarter': breadcrumbs['quarter']},
-                callback=self.parse_item
+                callback=self.parse_item,
+                cb_kwargs=dict(typeofdata='streets')
             )
 
     def _partition_by_type(self, response):
