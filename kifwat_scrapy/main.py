@@ -75,7 +75,7 @@ def fixField(field):
     return field
 
 def uploaddata(data,typeofdata,res):
-    print(data)
+    # print(data)
     
     if typeofdata == "region":
         instance = scrapData
